@@ -9,7 +9,41 @@
 <body ng-app="queryMongo" ng-cloak>
     <div ng-controller="QueryController as ctrl" layout="column" ng-cloak>
         <md-content class="md-padding" layout="column">
-            <h2 class="md-title">Query the Configuration</h2>
+            <h1 class="md-display-2">Setup Database</h1>
+            <div layout-gt-sm="row">
+                <md-autocomplete
+                        md-selected-item="ctrl.database"
+                        md-search-text="ctrl.searchText"
+                        md-items="item in ctrl.searchForDatabases(ctrl.searchText)"
+                        md-no-cache
+                        md-autoselect
+                        md-floating-label="Database Name">
+                    <md-item-template>
+                        <span md-highlight-text="ctrl.searchText"
+                              md-highlight-flags="^i">{{item}}</span>
+                    </md-item-template>
+                    <md-not-found>
+                        No database matching "{{ctrl.searchText}}" was found.
+                    </md-not-found>
+                </md-autocomplete>
+
+                <md-autocomplete
+                        md-selected-item="ctrl.collection"
+                        md-search-text="ctrl.searchColl"
+                        md-items="item in ctrl.searchForCollection(ctrl.searchColl)"
+                        md-autoselect
+                        md-floating-label="Collection Name">
+                    <md-item-template>
+                        <span md-highlight-text="ctrl.searchColl"
+                              md-highlight-flags="^i">{{item}}</span>
+                    </md-item-template>
+                    <md-not-found>
+                        No collection matching "{{ctrl.searchColl}}" was found.
+                    </md-not-found>
+                </md-autocomplete>
+            </div>
+
+            <h1 class="md-display-2">Query the Configuration</h1>
             <md-chips class="custom-chips" ng-model="ctrl.queries"
                   md-transform-chip="ctrl.newQuery($chip)" placeholder="Add config queries"
                   secondary-placeholder="+queries" md-on-add="ctrl.queryMongo()" md-on-remove="ctrl.queryMongo()">
@@ -59,130 +93,184 @@
                     <md-tab label="info">
                         <md-content class="md-padding">
                             <ul class="config-list">
-                                <li ng-repeat="(key, obj) in r.info" ng-include="'configTree'"></li>
+                                <li ng-repeat="(key, obj) in r.info" ng-include="'infoTree'"></li>
                             </ul>
                         </md-content>
                     </md-tab>
                 </md-tabs>
             </md-content>
         </md-content>
-
     </div>
 
-  <!-- Angular Material requires Angular.js Libraries -->
-  <script src="http://ajax.googleapis.com/ajax/libs/angularjs/1.4.8/angular.min.js"></script>
-  <script src="http://ajax.googleapis.com/ajax/libs/angularjs/1.4.8/angular-animate.min.js"></script>
-  <script src="http://ajax.googleapis.com/ajax/libs/angularjs/1.4.8/angular-aria.min.js"></script>
-  <script src="http://ajax.googleapis.com/ajax/libs/angularjs/1.4.8/angular-messages.min.js"></script>
-  <script src="https://ajax.googleapis.com/ajax/libs/jquery/1.11.3/jquery.min.js"></script>
-  <!-- Angular Material Library -->
-  <script src="http://ajax.googleapis.com/ajax/libs/angular_material/1.0.0/angular-material.min.js"></script>
+    <!-- Angular Material requires Angular.js Libraries -->
+    <script src="http://ajax.googleapis.com/ajax/libs/angularjs/1.4.8/angular.min.js"></script>
+    <script src="http://ajax.googleapis.com/ajax/libs/angularjs/1.4.8/angular-animate.min.js"></script>
+    <script src="http://ajax.googleapis.com/ajax/libs/angularjs/1.4.8/angular-aria.min.js"></script>
+    <script src="http://ajax.googleapis.com/ajax/libs/angularjs/1.4.8/angular-messages.min.js"></script>
+    <!-- Angular Material Library -->
+    <script src="http://ajax.googleapis.com/ajax/libs/angular_material/1.0.0/angular-material.min.js"></script>
+    <!-- jquery -->
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/1.11.3/jquery.min.js"></script>
 
-  <!-- Your application bootstrap  -->
-  <script type="text/javascript">
-      (function () {
-          'use strict';
-          angular.module('queryMongo', ['ngMaterial'])
-                 .controller('QueryController', QueryCtrl);
+    <!-- Your application bootstrap  -->
+    <script type="text/javascript">
+        (function () {
+            'use strict';
+            angular.module('queryMongo', ['ngMaterial'])
+                   .controller('QueryController', QueryCtrl);
 
-          function QueryCtrl($timeout, $q, $http, $scope, $mdDialog) {
-              var self = this;
-              self.fullQuery = "nothing here yet";
-              self.result = [];
-              self.error = "";
-              self.queries = [
-                  {
-                      'name': 'dataset.name',
-                      'op': '=',
-                      'value': 'shapes'
-                  }
-              ];
+            function QueryCtrl($timeout, $q, $http) {
+                var self = this;
+                self.fullQuery = "nothing here yet";
+                self.result = [];
+                self.error = "";
+                self.database = "";
+                self.searchText = "";
+                self.databases = [];
+                self.collection = "";
+                self.collections = [];
+                self.searchColl = "";
+                self.queries = [];
 
-              self.isObject = function(obj) {
-                  return $.type(obj) == 'object';
-              };
+                self.isObject = function(obj) {
+                    return $.type(obj) == 'object';
+                };
 
-              var format = function(val) {
-                  try {
-                      var v = $.parseJSON(val);
-                  }
-                  catch(err) {
-                      v = val;
-                  }
-                  if ($.type(v) == 'string') {
-                      return '"' + v + '"'
-                  } else {
-                      return v
-                  }
-              };
+                self.isArray = function(obj) {
+                    return $.type(obj) == 'array';
+                };
 
-              self.newQuery = function (chip) {
-                  var split_query = chip.split(/=|<|>/);
-                  var op = chip.substring(split_query[0].length, split_query[0].length + 1);
-                  if (split_query.length != 2) {
-                      return {
-                          name: split_query[0],
-                          warn: true
-                      };
-                  }
-                  return {
-                      name: split_query[0],
-                      op: op,
-                      value: split_query[1]
-                  };
-              };
+                var format = function(val) {
+                    try {
+                        var v = $.parseJSON(val);
+                    }
+                    catch(err) {
+                        v = val;
+                    }
+                    if ($.type(v) == 'string') {
+                        return '"' + v + '"'
+                    } else {
+                        return v
+                    }
+                };
 
-              self.queryMongo = function() {
-                  // build up query
-                  var full_query = [];
-                  var q;
-                  var i;
-                  for (i in self.queries) {
-                      q = self.queries[i];
-                      if (q.warn == true) {
-                          continue;
-                      }
-                      if (q.op == '=') {
-                          full_query.push(' "config.' + q.name + '": ' + format(q.value) + '');
-                      } else if (q.op == '<') {
-                          full_query.push(' "config.' + q.name + '": {"$lt": ' + format(q.value) + '}');
-                      } else if (q.op == '>') {
-                          full_query.push(' "config.' + q.name + '": {"$gt": ' + format(q.value) + '}');
-                      } else {
-                          full_query.push(q.name + q.op + q.value);
-                      }
-                  }
-                  self.fullQuery='{' + full_query.join() + '}';
-                  $http.get("http://localhost:8080/binding/random_search.runs?count&pagesize=10&filter=" + self.fullQuery).then(
-                      function successCallback(response) {
-                          self.total = response['data']['_size'];
-                          if (response['data']['_returned'] > 0) {
-                              self.result = response['data']['_embedded']['rh:doc'];
-                          } else {
-                              self.result = [];
-                          }
-                      }, function errorCallback(response) {
-                          self.error = response;
-                          self.result = [];
-                      });
-              };
+                self.newQuery = function (chip) {
+                    var split_query = chip.split(/=|<|>/);
+                    var op = chip.substring(split_query[0].length, split_query[0].length + 1);
+                    if (split_query.length != 2) {
+                        return {
+                            name: split_query[0],
+                            warn: true
+                        };
+                    }
+                    return {
+                        name: split_query[0],
+                        op: op,
+                        value: split_query[1]
+                    };
+                };
+
+                self.queryMongo = function() {
+                    // build up query
+                    var full_query = [];
+                    var q;
+                    var i;
+                    for (i in self.queries) {
+                        q = self.queries[i];
+                        if (q.warn == true) {
+                            continue;
+                        }
+                        if (q.op == '=') {
+                            full_query.push(' "config.' + q.name + '": ' + format(q.value) + '');
+                        } else if (q.op == '<') {
+                            full_query.push(' "config.' + q.name + '": {"$lt": ' + format(q.value) + '}');
+                        } else if (q.op == '>') {
+                            full_query.push(' "config.' + q.name + '": {"$gt": ' + format(q.value) + '}');
+                        } else {
+                            full_query.push(q.name + q.op + q.value);
+                        }
+                    }
+                    self.fullQuery='{' + full_query.join() + '}';
+                    $http.get("http://localhost:8080/" + self.database + "/" + self.collection + "?count&pagesize=10&filter=" + self.fullQuery).then(
+                        function successCallback(response) {
+                            self.total = response['data']['_size'];
+                            if (response['data']['_returned'] > 0) {
+                                self.result = response['data']['_embedded']['rh:doc'];
+                            } else {
+                                self.result = [];
+                            }
+                        }, function errorCallback(response) {
+                            self.error = response;
+                            self.result = [];
+                        });
+                };
+
+                function getDatabaseNames() {
+                    $http.get("http://localhost:8080").then(
+                        function successCallback(response) {
+                            if (response['data']['_returned'] > 0) {
+                                self.databases = [];
+                                var db;
+                                for (db in response['data']['_embedded']['rh:db']) {
+                                    db = response['data']['_embedded']['rh:db'][db];
+                                    self.databases.push(db._id);
+                                }
+                            } else {
+                                self.databases = [];
+                            }
+                        }, function errorCallback(response) {
+                                self.databases = [];
+                        });
+                }
 
 
-              self.queryMongo();
-          }
+                self.searchForDatabases = function(searchText) {
+                    return searchText ? self.databases.filter( createFilterFor(searchText) ) : self.databases;
+                };
 
+                self.searchForCollection = function(searchText) {
+                    var deferred = $q.defer();
+                    $http.get("http://localhost:8080/" + self.database + "/").then(
+                        function successCallback(response) {
+                            self.collections = [];
+                            if (response['data']['_returned'] > 0) {
+                                var i, coll;
+                                for (i in response['data']['_embedded']['rh:coll']) {
+                                    coll = response['data']['_embedded']['rh:coll'][i];
+                                    self.collections.push(coll._id);
+                                }
+                            }
+                            deferred.resolve(searchText ? self.collections.filter( createFilterFor(searchText) ) : self.collections);
+                        }, function errorCallback(response) {});
+                    return deferred.promise
+                };
 
+                function createFilterFor(query) {
+                    var lowercaseQuery = angular.lowercase(query);
+                    return function filterFn(entry) {
+                      return (entry.indexOf(lowercaseQuery) === 0);
+                    };
+                }
 
+                getDatabaseNames();
+                self.queryMongo();
+            }
+        })();
+    </script>
 
-      })();
-  </script>
+    <script type="text/ng-template" id="configTree">
+        <strong>{{ key }}</strong> <span ng-if="!ctrl.isObject(obj)">= {{ obj | json }}</span>
+        <ul ng-if="ctrl.isObject(obj)" class="config-list">
+            <li ng-repeat="(key, obj) in obj" ng-include="'configTree'"></li>
+        </ul>
+    </script>
 
-  <script type="text/ng-template" id="configTree">
-      <strong>{{ key }}</strong> <span ng-if="!ctrl.isObject(obj)">= {{ obj | json }}</span>
-      <ul ng-if="ctrl.isObject(obj)" class="config-list">
-          <li ng-repeat="(key, obj) in obj" ng-include="'configTree'"></li>
-      </ul>
-  </script>
+    <script type="text/ng-template" id="infoTree">
+        <strong>{{ key }}</strong> <span ng-if="!ctrl.isObject(obj) && !ctrl.isArray(obj)">= {{ obj | json }}</span>
+        <ul ng-if="ctrl.isObject(obj)" class="config-list">
+            <li ng-repeat="(key, obj) in obj" ng-include="'infoTree'"></li>
+        </ul>
+    </script>
 
 
 </body>
