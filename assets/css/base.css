@@ -1,0 +1,14 @@
+.warning-text {
+    color: darkred;
+}
+
+.run-block {
+    display: block;
+    margin: 1em;
+    border-radius: 4px;
+}
+
+.config-list {
+    list-style: None;
+    padding: 0 2em 0.2em 2em;
+}

@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <!-- Angular Material style sheet -->
+    <link rel="stylesheet" href="http://ajax.googleapis.com/ajax/libs/angular_material/1.0.0/angular-material.min.css">
+    <link rel="stylesheet" type="text/css" href="assets/css/base.css"/>
+</head>
+<body ng-app="queryMongo" ng-cloak>
+    <div ng-controller="QueryController as ctrl" layout="column" ng-cloak>
+        <md-content class="md-padding" layout="column">
+            <h2 class="md-title">Query the Configuration</h2>
+            <md-chips class="custom-chips" ng-model="ctrl.queries"
+                  md-transform-chip="ctrl.newQuery($chip)" placeholder="Add config queries"
+                  secondary-placeholder="+queries" md-on-add="ctrl.queryMongo()" md-on-remove="ctrl.queryMongo()">
+                <md-chip-template>
+                    <span ng-class="$chip.warn==true?'warning-text':''">
+                        <em>{{$chip.name}}</em> <strong>{{$chip.op}}</strong> {{$chip.value}}
+                    </span>
+                </md-chip-template>
+            </md-chips>
+            <p>{{ctrl.fullQuery}}</p>
+        </md-content>
+        <md-content>
+            <h2 class="md-title"> Results</h2>
+            Showing 10/{{ ctrl.total }}
+
+            <md-content ng-repeat="r in ctrl.result" class="run-block md-whiteframe-2dp">
+                <md-toolbar>
+                    <div class="md-toolbar-tools">
+                        <h3>{{ r.experiment.name }}</h3>
+                        <span flex></span>
+                        <span> {{ r.result | number:4}}</span>
+                    </div>
+
+                </md-toolbar>
+                <md-tabs md-dynamic-height md-border-bottom>
+                    <md-tab label="config">
+                        <md-content class="md-padding">
+                            <ul class="config-list">
+                                <li ng-repeat="(key, obj) in r.config" ng-include="'configTree'"></li>
+                            </ul>
+                        </md-content>
+                    </md-tab>
+                    <md-tab label="experiment">
+                        <md-content class="md-padding">
+                            <ul class="config-list">
+                                <li ng-repeat="(key, obj) in r.experiment" ng-include="'configTree'"></li>
+                            </ul>
+                        </md-content>
+                    </md-tab>
+                    <md-tab label="host">
+                        <md-content class="md-padding">
+                            <ul class="config-list">
+                                <li ng-repeat="(key, obj) in r.host" ng-include="'configTree'"></li>
+                            </ul>
+                        </md-content>
+                    </md-tab>
+                    <md-tab label="info">
+                        <md-content class="md-padding">
+                            <ul class="config-list">
+                                <li ng-repeat="(key, obj) in r.info" ng-include="'configTree'"></li>
+                            </ul>
+                        </md-content>
+                    </md-tab>
+                </md-tabs>
+            </md-content>
+        </md-content>
+
+    </div>
+
+  <!-- Angular Material requires Angular.js Libraries -->
+  <script src="http://ajax.googleapis.com/ajax/libs/angularjs/1.4.8/angular.min.js"></script>
+  <script src="http://ajax.googleapis.com/ajax/libs/angularjs/1.4.8/angular-animate.min.js"></script>
+  <script src="http://ajax.googleapis.com/ajax/libs/angularjs/1.4.8/angular-aria.min.js"></script>
+  <script src="http://ajax.googleapis.com/ajax/libs/angularjs/1.4.8/angular-messages.min.js"></script>
+  <script src="https://ajax.googleapis.com/ajax/libs/jquery/1.11.3/jquery.min.js"></script>
+  <!-- Angular Material Library -->
+  <script src="http://ajax.googleapis.com/ajax/libs/angular_material/1.0.0/angular-material.min.js"></script>
+
+  <!-- Your application bootstrap  -->
+  <script type="text/javascript">
+      (function () {
+          'use strict';
+          angular.module('queryMongo', ['ngMaterial'])
+                 .controller('QueryController', QueryCtrl);
+
+          function QueryCtrl($timeout, $q, $http, $scope, $mdDialog) {
+              var self = this;
+              self.fullQuery = "nothing here yet";
+              self.result = [];
+              self.error = "";
+              self.queries = [
+                  {
+                      'name': 'dataset.name',
+                      'op': '=',
+                      'value': 'shapes'
+                  }
+              ];
+
+              self.isObject = function(obj) {
+                  return $.type(obj) == 'object';
+              };
+
+              var format = function(val) {
+                  try {
+                      var v = $.parseJSON(val);
+                  }
+                  catch(err) {
+                      v = val;
+                  }
+                  if ($.type(v) == 'string') {
+                      return '"' + v + '"'
+                  } else {
+                      return v
+                  }
+              };
+
+              self.newQuery = function (chip) {
+                  var split_query = chip.split(/=|<|>/);
+                  var op = chip.substring(split_query[0].length, split_query[0].length + 1);
+                  if (split_query.length != 2) {
+                      return {
+                          name: split_query[0],
+                          warn: true
+                      };
+                  }
+                  return {
+                      name: split_query[0],
+                      op: op,
+                      value: split_query[1]
+                  };
+              };
+
+              self.queryMongo = function() {
+                  // build up query
+                  var full_query = [];
+                  var q;
+                  var i;
+                  for (i in self.queries) {
+                      q = self.queries[i];
+                      if (q.warn == true) {
+                          continue;
+                      }
+                      if (q.op == '=') {
+                          full_query.push(' "config.' + q.name + '": ' + format(q.value) + '');
+                      } else if (q.op == '<') {
+                          full_query.push(' "config.' + q.name + '": {"$lt": ' + format(q.value) + '}');
+                      } else if (q.op == '>') {
+                          full_query.push(' "config.' + q.name + '": {"$gt": ' + format(q.value) + '}');
+                      } else {
+                          full_query.push(q.name + q.op + q.value);
+                      }
+                  }
+                  self.fullQuery='{' + full_query.join() + '}';
+                  $http.get("http://localhost:8080/binding/random_search.runs?count&pagesize=10&filter=" + self.fullQuery).then(
+                      function successCallback(response) {
+                          self.total = response['data']['_size'];
+                          if (response['data']['_returned'] > 0) {
+                              self.result = response['data']['_embedded']['rh:doc'];
+                          } else {
+                              self.result = [];
+                          }
+                      }, function errorCallback(response) {
+                          self.error = response;
+                          self.result = [];
+                      });
+              };
+
+
+              self.queryMongo();
+          }
+
+
+
+
+      })();
+  </script>
+
+  <script type="text/ng-template" id="configTree">
+      <strong>{{ key }}</strong> <span ng-if="!ctrl.isObject(obj)">= {{ obj | json }}</span>
+      <ul ng-if="ctrl.isObject(obj)" class="config-list">
+          <li ng-repeat="(key, obj) in obj" ng-include="'configTree'"></li>
+      </ul>
+  </script>
+
+
+</body>
+</html>
+
