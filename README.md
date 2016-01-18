@@ -1,5 +1,6 @@
 # Prophet
-Webtool to inspect the content of a MongoDB that was populated by Sacred.
+Webtool to inspect the content of a [MongoDB](https://www.mongodb.org/) that 
+was populated by [Sacred](https://github.com/IDSIA/sacred).
 
 THIS PROTOTYPE IS WORK IN PROGRESS AND IN AN ALPHA STATE.
 Use at your own risk.
