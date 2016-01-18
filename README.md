@@ -1,4 +1,4 @@
-# Sacred Grove
+# Prophet
 Webtool to inspect the content of a MongoDB that was populated by Sacred.
 
 THIS PROTOTYPE IS WORK IN PROGRESS AND IN AN ALPHA STATE.
